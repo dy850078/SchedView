@@ -43,7 +43,7 @@ codegen/
 
 Install:
 ```bash
-pnpm add @tanstack/react-query zod
+npm install @tanstack/react-query zod
 ```
 
 ## Tailwind config

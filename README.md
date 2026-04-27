@@ -81,17 +81,15 @@ sync_run                                          ← audit trail of sync attemp
 ### Getting started
 
 **Prerequisites**
-- Node.js 20+
-- pnpm (enable via `corepack enable pnpm`)
+- Node.js 20+ (npm ships with it)
 - Build toolchain for `better-sqlite3` native binding — on Linux / WSL: `python3` + `build-essential`
 
 **First run**
 ```bash
-corepack enable pnpm
-pnpm install
-pnpm db:migrate      # creates ./data/schedview.db + schema
-pnpm db:seed         # optional — triggers one sync via the mock Inventory
-pnpm dev             # http://localhost:3000
+npm install
+npm run db:migrate   # creates ./data/schedview.db + schema
+npm run db:seed      # optional — triggers one sync via the mock Inventory
+npm run dev          # http://localhost:3000
 ```
 
 The dev server also auto-runs a sync on boot and every 5 minutes thereafter — the seed step above is really only for reproducibility / offline testing.
@@ -100,16 +98,16 @@ The dev server also auto-runs a sync on boot and every 5 minutes thereafter — 
 
 | Script | What it does |
 |---|---|
-| `pnpm dev` | Start Next.js dev server (instrumentation fires sync on boot) |
-| `pnpm build` | Production build |
-| `pnpm start` | Run the production build |
-| `pnpm lint` | ESLint |
-| `pnpm typecheck` | `tsc --noEmit` |
-| `pnpm db:generate` | Generate SQL migration from `src/db/schema.ts` |
-| `pnpm db:migrate` | Apply pending migrations |
-| `pnpm db:studio` | Drizzle Studio (visual DB browser) |
-| `pnpm db:seed` | Trigger one `runSync()` (uses `INVENTORY_MODE=mock` by default) |
-| `pnpm test` | Vitest (no specs yet) |
+| `npm run dev` | Start Next.js dev server (instrumentation fires sync on boot) |
+| `npm run build` | Production build |
+| `npm start` | Run the production build |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run db:generate` | Generate SQL migration from `src/db/schema.ts` |
+| `npm run db:migrate` | Apply pending migrations |
+| `npm run db:studio` | Drizzle Studio (visual DB browser) |
+| `npm run db:seed` | Trigger one `runSync()` (uses `INVENTORY_MODE=mock` by default) |
+| `npm test` | Vitest (no specs yet) |
 
 ### Environment variables
 
@@ -207,34 +205,32 @@ schedule_request (1) ──< (N) schedule_placement (0..1) ──> baremetal
 ### 快速啟動
 
 **前置條件**
-- Node.js 20+
-- pnpm（用 `corepack enable pnpm` 開啟）
+- Node.js 20+（npm 隨附）
 - `better-sqlite3` 需要 native build——Linux / WSL 請裝 `python3` 與 `build-essential`
 
 **首次執行**
 ```bash
-corepack enable pnpm
-pnpm install
-pnpm db:migrate      # 建立 ./data/schedview.db 與 schema
-pnpm db:seed         # 選配：用 mock Inventory 灌一次資料
-pnpm dev             # http://localhost:3000
+npm install
+npm run db:migrate   # 建立 ./data/schedview.db 與 schema
+npm run db:seed      # 選配：用 mock Inventory 灌一次資料
+npm run dev          # http://localhost:3000
 ```
 
-Dev server 啟動時會自動跑一次 sync，之後每 5 分鐘再跑。`pnpm db:seed` 主要是給離線 / 可重現性測試用。
+Dev server 啟動時會自動跑一次 sync，之後每 5 分鐘再跑。`npm run db:seed` 主要是給離線 / 可重現性測試用。
 
 ### 常用指令
 
 | 指令 | 作用 |
 |---|---|
-| `pnpm dev` | 啟動開發伺服器（同時啟動週期 sync worker）|
-| `pnpm build` | 正式 build |
-| `pnpm start` | 執行 build 產物 |
-| `pnpm lint` / `pnpm typecheck` | Lint 與 TypeScript 型別檢查 |
-| `pnpm db:generate` | 從 `schema.ts` 產出 SQL migration |
-| `pnpm db:migrate` | 套用未執行的 migration |
-| `pnpm db:studio` | Drizzle Studio（DB 視覺化工具）|
-| `pnpm db:seed` | 觸發一次 `runSync()`（預設 `INVENTORY_MODE=mock`）|
-| `pnpm test` | Vitest（目前尚無測試檔）|
+| `npm run dev` | 啟動開發伺服器（同時啟動週期 sync worker）|
+| `npm run build` | 正式 build |
+| `npm start` | 執行 build 產物 |
+| `npm run lint` / `npm run typecheck` | Lint 與 TypeScript 型別檢查 |
+| `npm run db:generate` | 從 `schema.ts` 產出 SQL migration |
+| `npm run db:migrate` | 套用未執行的 migration |
+| `npm run db:studio` | Drizzle Studio（DB 視覺化工具）|
+| `npm run db:seed` | 觸發一次 `runSync()`（預設 `INVENTORY_MODE=mock`）|
+| `npm test` | Vitest（目前尚無測試檔）|
 
 ### 環境變數
 

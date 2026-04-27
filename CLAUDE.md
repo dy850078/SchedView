@@ -689,7 +689,7 @@ This repo has no build/lint/test scripts of its own — `codegen/package.json` d
 cp -r codegen/ /path/to/host-app/src/features/scheduler/
 
 # Install the peer deps in the host app
-pnpm add @tanstack/react-query zod clsx
+npm install @tanstack/react-query zod clsx
 
 # Point the dashboard at your API (host-app .env)
 echo 'NEXT_PUBLIC_SCHEDULER_API=https://scheduler.example.com/api' >> .env.local

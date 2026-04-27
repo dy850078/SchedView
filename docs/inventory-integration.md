@@ -8,7 +8,7 @@
 
 - **目標讀者**：有 TypeScript / Next.js 基礎，但剛接手 SchedView 的工程師。
 - **前置閱讀**：`README.md` 的 Architecture + Sync semantics 兩節。
-- **目標**：完成「切換到真實 Inventory API」並讓 `pnpm dev` 開出的 dashboard 顯示真實資料。
+- **目標**：完成「切換到真實 Inventory API」並讓 `npm run dev` 開出的 dashboard 顯示真實資料。
 - **不涵蓋**：Inventory API 本身的設計／部署；SchedView 的 UI 改動；DB schema 大改（見 §7 延伸路線）。
 
 ---
@@ -53,7 +53,7 @@
 ## 階段 0：開工前
 
 1. 讀完 `README.md`（特別是 Architecture 與 Sync semantics 兩節）。
-2. `pnpm dev` 跑起來確認 mock 模式一切正常（dashboard 應該有 20 筆 request、15 台 BM）。
+2. `npm run dev` 跑起來確認 mock 模式一切正常（dashboard 應該有 20 筆 request、15 台 BM）。
 3. 開啟以下幾個檔案，對照著看：
    - `src/lib/inventory-types.ts`（SchedView 期望的形狀）
    - `src/lib/inventory-client.ts`（interface）
@@ -201,9 +201,9 @@ INVENTORY_API_KEY=xxxxxxxxxxxx
 **跑起來驗證**：
 
 ```bash
-pnpm db:seed      # 觸發一次 runSync
+npm run db:seed      # 觸發一次 runSync
 # 或直接：
-INVENTORY_MODE=http pnpm dev
+INVENTORY_MODE=http npm run dev
 ```
 
 `data/schedview.db` 會被填入真實資料。前往 http://localhost:3000 確認 dashboard 長得對。若 sync 失敗（例如 schema 驗證失敗），看 console 的 `[sync] skipping invalid ...` log — 這通常代表你其實在情境 B，不是 A。
@@ -353,7 +353,7 @@ export function createHttpInventoryClient(): InventoryClient {
 `safeParse` 是你的護身符。sync.ts 的 parse 失敗不會炸掉整批，只會 log 並計入 `records_skipped`。所以切 HTTP 模式第一次跑完後，務必看：
 
 ```bash
-pnpm dev
+npm run dev
 # 找 log：
 #   [sync] skipping invalid ScheduleRequest: [...]
 #   [sync] skipping invalid Baremetal: [...]
@@ -427,12 +427,12 @@ async listScheduleRequests() {
 
 1. 更新 `src/lib/inventory-types.ts` 的 Raw schemas。
 2. 更新 `src/lib/sync.ts` 的 `upsertBaremetal` / `upsertRequest` 函數。
-3. 若需要新欄位：更新 `src/db/schema.ts`，跑 `pnpm db:generate` + `pnpm db:migrate`。
+3. 若需要新欄位：更新 `src/db/schema.ts`，跑 `npm run db:generate` + `npm run db:migrate`。
 4. 更新 `src/lib/projectors.ts` 把新欄位映射到 API response shape。
 5. 更新 `src/features/scheduler/types.ts` 的客戶端 schema。
 6. 更新 UI 元件使用新欄位。
 
-這條路每個 step 都要跑 `pnpm typecheck` + `pnpm build`，編譯器會抓出多數疏漏。
+這條路每個 step 都要跑 `npm run typecheck` + `npm run build`，編譯器會抓出多數疏漏。
 
 ---
 
@@ -573,7 +573,7 @@ HTTP 切換後，若你發現 sync 本身的行為需要調整，對照這張表
 | 全量太慢／太貴 | `sync.ts` | 改 incremental：在 `createInventoryClient().listScheduleRequests({ since })` 傳入上次 `sync_run.finished_at`。需要 Inventory 支援 `since` query param |
 | 5 分鐘太頻繁 | `src/instrumentation.ts` | 改 `setInterval` 數值 |
 | 要暫停 periodic sync（debug 時） | `src/instrumentation.ts` | 加 `if (process.env.DISABLE_SYNC_WORKER) return;` |
-| 想看 sync 歷史 | DB | `SELECT * FROM sync_run ORDER BY id DESC LIMIT 20;` 或 `pnpm db:studio` |
+| 想看 sync 歷史 | DB | `SELECT * FROM sync_run ORDER BY id DESC LIMIT 20;` 或 `npm run db:studio` |
 | 要加「最後成功時間」UI | `SyncNowButton.tsx` + `/api/sync/status` | 已實作，讀 `last.finished_at` |
 | Inventory 掛了想看到 UI 上的警示 | `SyncNowButton.tsx` | `last.status === 'failed'` 時改紅色按鈕；`title` attr 顯示 `error_message` |
 
@@ -612,13 +612,13 @@ const rawRequests = await client.listScheduleRequests({
 - [ ] `INVENTORY_API_KEY` 用 secret manager 管理（不是 plain env）
 - [ ] `DATABASE_PATH` 指到持久化儲存（Vercel 不適合 — 改 Postgres；自架 Node 可以用 volume）
 - [ ] `src/lib/inventory-client.http.ts` 內所有 `TODO(contract)` 已移除
-- [ ] `pnpm typecheck` clean
-- [ ] `pnpm lint` clean
-- [ ] `pnpm build` clean
-- [ ] 手動 smoke：`INVENTORY_MODE=http pnpm db:seed` 成功，`records_skipped === 0`
-- [ ] `pnpm dev` 起來後 dashboard 正確顯示前 10 筆 request
+- [ ] `npm run typecheck` clean
+- [ ] `npm run lint` clean
+- [ ] `npm run build` clean
+- [ ] 手動 smoke：`INVENTORY_MODE=http npm run db:seed` 成功，`records_skipped === 0`
+- [ ] `npm run dev` 起來後 dashboard 正確顯示前 10 筆 request
 - [ ] 點 Sync Now 按鈕 → toast 顯示成功
-- [ ] `pnpm dev` 放著 10 分鐘，觀察 `sync_run` 表多出 2 筆（0 分鐘 + 5 分鐘 + 10 分鐘，含 boot run 可能 3 筆）
+- [ ] `npm run dev` 放著 10 分鐘，觀察 `sync_run` 表多出 2 筆（0 分鐘 + 5 分鐘 + 10 分鐘，含 boot run 可能 3 筆）
 - [ ] 部署目標若是 Vercel：設定 Vercel Cron 打 `/api/sync`（因 `instrumentation.ts` 會在 Vercel 環境 skip `setInterval`）
 - [ ] `docs/scheduler-module.md` 已更新（若有新增 endpoint 或欄位）
 
@@ -732,7 +732,7 @@ RawBaremetal.ip_types              → baremetal.ip_types (JSON-encoded TEXT)
 2. 若 API 有資料，UI 沒顯示：F12 看 Network / Console，可能是前端 Zod parse 失敗（`PlacementResultSchema.parse` 或 `ScheduleRequestSchema.array().parse`）。
 3. 若 API 也沒資料：`node -e "const Database=require('better-sqlite3'); const db=new Database('./data/schedview.db'); console.log(db.prepare('SELECT COUNT(*) FROM schedule_request').get());"` 看 DB 有沒有資料。
 4. 若 DB 是空的：`SELECT * FROM sync_run ORDER BY id DESC LIMIT 5;` 看 sync 有沒有跑成功。
-5. 若 sync 沒跑過：確認 `pnpm dev` 啟動時 `src/instrumentation.ts` 是否被執行（看 console 有沒有 [sync] log）。
+5. 若 sync 沒跑過：確認 `npm run dev` 啟動時 `src/instrumentation.ts` 是否被執行（看 console 有沒有 [sync] log）。
 
 ### C4. Sync Now 按鈕一直轉圈
 
@@ -755,11 +755,11 @@ RawBaremetal.ip_types              → baremetal.ip_types (JSON-encoded TEXT)
 
 SchedView 從第一天就設計成「schema.ts 是 portable 的」。真的要換 Postgres 時：
 
-1. 安裝：`pnpm add postgres` 或 `pnpm add pg` + `@types/pg`
+1. 安裝：`npm install postgres` 或 `npm install pg` + `@types/pg`
 2. `src/db/schema.ts`：`sqliteTable` → `pgTable`，`integer(ts)` → `timestamp()`（擇一，另一個方案是繼續用 `bigint` 存 ms），`text(..., { mode: 'json' })` → `jsonb`
 3. `src/db/client.ts`：換 driver import 與連線字串
 4. `drizzle.config.ts`：`dialect: 'sqlite'` → `'postgresql'`
-5. `pnpm db:generate` 產新 migration；舊 SQLite migration 不會用到（可以保留或刪掉）
+5. `npm run db:generate` 產新 migration；舊 SQLite migration 不會用到（可以保留或刪掉）
 6. 其他檔案（sync.ts、projectors.ts、Route Handlers、UI）完全不用改
 
 觸發條件：
