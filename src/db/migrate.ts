@@ -1,38 +1,22 @@
-import { DatabaseSync } from 'node:sqlite';
-import { drizzle } from 'drizzle-orm/sqlite-proxy';
-import { migrate } from 'drizzle-orm/sqlite-proxy/migrator';
-import { mkdirSync } from 'node:fs';
-import { dirname, isAbsolute, resolve } from 'node:path';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { Pool } from 'pg';
 
-const DB_PATH = process.env.DATABASE_PATH ?? './data/schedview.db';
-const abs = isAbsolute(DB_PATH) ? DB_PATH : resolve(process.cwd(), DB_PATH);
-
-mkdirSync(dirname(abs), { recursive: true });
-
-const sqlite = new DatabaseSync(abs);
-sqlite.exec('PRAGMA journal_mode = WAL');
-sqlite.exec('PRAGMA foreign_keys = ON');
-
-const db = drizzle(async (sql, params, method) => {
-  const stmt = sqlite.prepare(sql);
-  if (method === 'run') {
-    stmt.run(...(params as never[]));
-    return { rows: [] };
-  }
-  const rows = stmt.all(...(params as never[])) as Record<string, unknown>[];
-  return { rows: rows.map((r) => Object.values(r)) };
-});
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) {
+  console.error(
+    'DATABASE_URL is not set. Example: postgres://user:pass@localhost:5432/schedview',
+  );
+  process.exit(1);
+}
 
 async function main() {
-  await migrate(
-    db,
-    async (queries: string[]) => {
-      for (const q of queries) sqlite.exec(q);
-    },
-    { migrationsFolder: './src/db/migrations' },
-  );
-  console.log(`✓ Migrations applied to ${abs}`);
-  sqlite.close();
+  const pool = new Pool({ connectionString: DATABASE_URL });
+  const db = drizzle(pool);
+  await migrate(db, { migrationsFolder: './src/db/migrations' });
+  const safeUrl = DATABASE_URL!.replace(/:[^:@/]*@/, ':***@');
+  console.log(`✓ Migrations applied to ${safeUrl}`);
+  await pool.end();
 }
 
 main().catch((err) => {

@@ -1,42 +1,29 @@
-import { DatabaseSync } from 'node:sqlite';
-import { drizzle } from 'drizzle-orm/sqlite-proxy';
-import { mkdirSync } from 'node:fs';
-import { dirname, isAbsolute, resolve } from 'node:path';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
 import * as schema from './schema';
 
-const DB_PATH = process.env.DATABASE_PATH ?? './data/schedview.db';
+const DATABASE_URL = process.env.DATABASE_URL;
+
+if (!DATABASE_URL) {
+  throw new Error(
+    'DATABASE_URL is not set. Example: postgres://user:pass@localhost:5432/schedview',
+  );
+}
 
 type Db = ReturnType<typeof drizzle<typeof schema>>;
 
 declare global {
+  var __schedview_pool__: Pool | undefined;
   var __schedview_db__: Db | undefined;
-  var __schedview_sqlite__: DatabaseSync | undefined;
 }
 
-function createDb(): Db {
-  const abs = isAbsolute(DB_PATH) ? DB_PATH : resolve(process.cwd(), DB_PATH);
-  mkdirSync(dirname(abs), { recursive: true });
-  const sqlite = new DatabaseSync(abs);
-  sqlite.exec('PRAGMA journal_mode = WAL');
-  sqlite.exec('PRAGMA foreign_keys = ON');
-  globalThis.__schedview_sqlite__ = sqlite;
+const pool =
+  globalThis.__schedview_pool__ ?? new Pool({ connectionString: DATABASE_URL });
 
-  return drizzle(
-    async (sql, params, method) => {
-      const stmt = sqlite.prepare(sql);
-      if (method === 'run') {
-        stmt.run(...(params as never[]));
-        return { rows: [] };
-      }
-      const rows = stmt.all(...(params as never[])) as Record<string, unknown>[];
-      return { rows: rows.map((r) => Object.values(r)) };
-    },
-    { schema },
-  );
-}
-
-export const db: Db = globalThis.__schedview_db__ ?? createDb();
+export const db: Db =
+  globalThis.__schedview_db__ ?? drizzle(pool, { schema });
 
 if (process.env.NODE_ENV !== 'production') {
+  globalThis.__schedview_pool__ = pool;
   globalThis.__schedview_db__ = db;
 }
