@@ -1,28 +1,29 @@
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { mkdirSync } from 'node:fs';
-import { dirname, isAbsolute, resolve } from 'node:path';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
 import * as schema from './schema';
 
-const DB_PATH = process.env.DATABASE_PATH ?? './data/schedview.db';
+const DATABASE_URL = process.env.DATABASE_URL;
+
+if (!DATABASE_URL) {
+  throw new Error(
+    'DATABASE_URL is not set. Example: postgres://user:pass@localhost:5432/schedview',
+  );
+}
 
 type Db = ReturnType<typeof drizzle<typeof schema>>;
 
 declare global {
+  var __schedview_pool__: Pool | undefined;
   var __schedview_db__: Db | undefined;
 }
 
-function createDb(): Db {
-  const abs = isAbsolute(DB_PATH) ? DB_PATH : resolve(process.cwd(), DB_PATH);
-  mkdirSync(dirname(abs), { recursive: true });
-  const sqlite = new Database(abs);
-  sqlite.pragma('journal_mode = WAL');
-  sqlite.pragma('foreign_keys = ON');
-  return drizzle(sqlite, { schema });
-}
+const pool =
+  globalThis.__schedview_pool__ ?? new Pool({ connectionString: DATABASE_URL });
 
-export const db: Db = globalThis.__schedview_db__ ?? createDb();
+export const db: Db =
+  globalThis.__schedview_db__ ?? drizzle(pool, { schema });
 
 if (process.env.NODE_ENV !== 'production') {
+  globalThis.__schedview_pool__ = pool;
   globalThis.__schedview_db__ = db;
 }

@@ -1,26 +1,29 @@
 import {
+  bigint,
   index,
   integer,
+  jsonb,
+  pgTable,
   real,
-  sqliteTable,
+  serial,
   text,
   uniqueIndex,
-} from 'drizzle-orm/sqlite-core';
+} from 'drizzle-orm/pg-core';
 
-export const scheduleRequest = sqliteTable(
+export const scheduleRequest = pgTable(
   'schedule_request',
   {
     id: text('id').primaryKey(),
     clusterId: text('cluster_id').notNull(),
-    submittedAt: integer('submitted_at').notNull(),
+    submittedAt: bigint('submitted_at', { mode: 'number' }).notNull(),
     status: text('status').notNull(),
     solverStatus: text('solver_status').notNull(),
     solveTimeSeconds: real('solve_time_seconds').notNull(),
     unplacedCount: integer('unplaced_count').notNull(),
     requestedBy: text('requested_by').notNull(),
     reason: text('reason'),
-    syncedAt: integer('synced_at').notNull(),
-    deletedAt: integer('deleted_at'),
+    syncedAt: bigint('synced_at', { mode: 'number' }).notNull(),
+    deletedAt: bigint('deleted_at', { mode: 'number' }),
   },
   (t) => [
     index('idx_sr_cluster').on(t.clusterId),
@@ -29,10 +32,10 @@ export const scheduleRequest = sqliteTable(
   ],
 );
 
-export const schedulePlacement = sqliteTable(
+export const schedulePlacement = pgTable(
   'schedule_placement',
   {
-    id: integer('id').primaryKey({ autoIncrement: true }),
+    id: serial('id').primaryKey(),
     scheduleRequestId: text('schedule_request_id')
       .notNull()
       .references(() => scheduleRequest.id, { onDelete: 'cascade' }),
@@ -51,7 +54,7 @@ export const schedulePlacement = sqliteTable(
   ],
 );
 
-export const baremetal = sqliteTable(
+export const baremetal = pgTable(
   'baremetal',
   {
     id: text('id').primaryKey(),
@@ -73,16 +76,16 @@ export const baremetal = sqliteTable(
     bmRole: text('bm_role').notNull(),
     maxVmCount: integer('max_vm_count').notNull(),
     currentVmCount: integer('current_vm_count').notNull(),
-    ipTypes: text('ip_types', { mode: 'json' }).$type<string[]>().notNull(),
-    snapshotAt: integer('snapshot_at').notNull(),
+    ipTypes: jsonb('ip_types').$type<string[]>().notNull(),
+    snapshotAt: bigint('snapshot_at', { mode: 'number' }).notNull(),
   },
   (t) => [index('idx_bm_ag').on(t.ag), index('idx_bm_rack').on(t.rack)],
 );
 
-export const syncRun = sqliteTable('sync_run', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  startedAt: integer('started_at').notNull(),
-  finishedAt: integer('finished_at'),
+export const syncRun = pgTable('sync_run', {
+  id: serial('id').primaryKey(),
+  startedAt: bigint('started_at', { mode: 'number' }).notNull(),
+  finishedAt: bigint('finished_at', { mode: 'number' }),
   status: text('status').notNull(),
   errorMessage: text('error_message'),
   recordsUpserted: integer('records_upserted').notNull().default(0),

@@ -1,20 +1,25 @@
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import { mkdirSync } from 'node:fs';
-import { dirname, isAbsolute, resolve } from 'node:path';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { Pool } from 'pg';
 
-const DB_PATH = process.env.DATABASE_PATH ?? './data/schedview.db';
-const abs = isAbsolute(DB_PATH) ? DB_PATH : resolve(process.cwd(), DB_PATH);
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) {
+  console.error(
+    'DATABASE_URL is not set. Example: postgres://user:pass@localhost:5432/schedview',
+  );
+  process.exit(1);
+}
 
-mkdirSync(dirname(abs), { recursive: true });
+async function main() {
+  const pool = new Pool({ connectionString: DATABASE_URL });
+  const db = drizzle(pool);
+  await migrate(db, { migrationsFolder: './src/db/migrations' });
+  const safeUrl = DATABASE_URL!.replace(/:[^:@/]*@/, ':***@');
+  console.log(`✓ Migrations applied to ${safeUrl}`);
+  await pool.end();
+}
 
-const sqlite = new Database(abs);
-sqlite.pragma('journal_mode = WAL');
-sqlite.pragma('foreign_keys = ON');
-
-const db = drizzle(sqlite);
-migrate(db, { migrationsFolder: './src/db/migrations' });
-
-console.log(`✓ Migrations applied to ${abs}`);
-sqlite.close();
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

@@ -206,7 +206,7 @@ npm run db:seed      # 觸發一次 runSync
 INVENTORY_MODE=http npm run dev
 ```
 
-`data/schedview.db` 會被填入真實資料。前往 http://localhost:3000 確認 dashboard 長得對。若 sync 失敗（例如 schema 驗證失敗），看 console 的 `[sync] skipping invalid ...` log — 這通常代表你其實在情境 B，不是 A。
+Postgres 會被填入真實資料（`docker exec -it schedview-pg psql -U schedview -c 'SELECT count(*) FROM schedule_request;'` 可以快速驗）。前往 http://localhost:3000 確認 dashboard 長得對。若 sync 失敗（例如 schema 驗證失敗），看 console 的 `[sync] skipping invalid ...` log — 這通常代表你其實在情境 B，不是 A。
 
 ---
 
@@ -610,7 +610,7 @@ const rawRequests = await client.listScheduleRequests({
 - [ ] `INVENTORY_MODE=http` 已設在部署環境
 - [ ] `INVENTORY_BASE_URL` 指向對的環境（dev / staging / prod）
 - [ ] `INVENTORY_API_KEY` 用 secret manager 管理（不是 plain env）
-- [ ] `DATABASE_PATH` 指到持久化儲存（Vercel 不適合 — 改 Postgres；自架 Node 可以用 volume）
+- [ ] `DATABASE_URL` 指向部署環境的 Postgres（dev / staging / prod）；密碼用 secret manager 管理
 - [ ] `src/lib/inventory-client.http.ts` 內所有 `TODO(contract)` 已移除
 - [ ] `npm run typecheck` clean
 - [ ] `npm run lint` clean
@@ -697,7 +697,7 @@ RawBaremetal.id                    → baremetal.id (PK)
 RawBaremetal.topology.*            → baremetal (flattened columns)
 RawBaremetal.total_capacity.*      → baremetal.total_*
 RawBaremetal.used_capacity.*       → baremetal.used_*
-RawBaremetal.ip_types              → baremetal.ip_types (JSON-encoded TEXT)
+RawBaremetal.ip_types              → baremetal.ip_types (jsonb)
 ```
 
 若你的 adapter 改變了 Raw shape（進入 C2 路線），對應要改 `sync.ts` 的 `values` 物件，以及可能的 `projectors.ts`。
@@ -730,8 +730,8 @@ RawBaremetal.ip_types              → baremetal.ip_types (JSON-encoded TEXT)
 **排查順序**：
 1. `curl http://localhost:3000/api/schedule-requests` → 有沒有資料？
 2. 若 API 有資料，UI 沒顯示：F12 看 Network / Console，可能是前端 Zod parse 失敗（`PlacementResultSchema.parse` 或 `ScheduleRequestSchema.array().parse`）。
-3. 若 API 也沒資料：`node -e "const Database=require('better-sqlite3'); const db=new Database('./data/schedview.db'); console.log(db.prepare('SELECT COUNT(*) FROM schedule_request').get());"` 看 DB 有沒有資料。
-4. 若 DB 是空的：`SELECT * FROM sync_run ORDER BY id DESC LIMIT 5;` 看 sync 有沒有跑成功。
+3. 若 API 也沒資料：`psql "$DATABASE_URL" -c 'SELECT count(*) FROM schedule_request;'` 看 DB 有沒有資料。
+4. 若 DB 是空的：`psql "$DATABASE_URL" -c 'SELECT * FROM sync_run ORDER BY id DESC LIMIT 5;'` 看 sync 有沒有跑成功。
 5. 若 sync 沒跑過：確認 `npm run dev` 啟動時 `src/instrumentation.ts` 是否被執行（看 console 有沒有 [sync] log）。
 
 ### C4. Sync Now 按鈕一直轉圈
@@ -751,21 +751,21 @@ RawBaremetal.ip_types              → baremetal.ip_types (JSON-encoded TEXT)
 
 ---
 
-## 附錄 D：何時考慮換掉 SQLite
+## 附錄 D：DB 後端歷史與替換策略
 
-SchedView 從第一天就設計成「schema.ts 是 portable 的」。真的要換 Postgres 時：
+SchedView 目前用 **PostgreSQL**（`drizzle-orm/node-postgres`）。早期版本用過 SQLite (`better-sqlite3`)，後來因為兩個需求換掉：
 
-1. 安裝：`npm install postgres` 或 `npm install pg` + `@types/pg`
-2. `src/db/schema.ts`：`sqliteTable` → `pgTable`，`integer(ts)` → `timestamp()`（擇一，另一個方案是繼續用 `bigint` 存 ms），`text(..., { mode: 'json' })` → `jsonb`
-3. `src/db/client.ts`：換 driver import 與連線字串
-4. `drizzle.config.ts`：`dialect: 'sqlite'` → `'postgresql'`
-5. `npm run db:generate` 產新 migration；舊 SQLite migration 不會用到（可以保留或刪掉）
-6. 其他檔案（sync.ts、projectors.ts、Route Handlers、UI）完全不用改
+1. **無 native binding 的安裝路徑**：純 JS 的 `pg` driver 可以完整經過企業內網的 Nexus / Artifactory 等 npm 鏡像，不需要從 GitHub releases 抓 prebuild。
+2. **多實例部署**：`./data/schedview.db` 的檔案鎖在多 pod 環境會變成瓶頸；Postgres 直接解掉。
 
-觸發條件：
-- 資料量 > 10GB（SQLite 還撐得住但備份開始麻煩）
-- 多實例部署（SQLite 檔案鎖會變問題）
-- 要上 Vercel 等 serverless 平台（`./data/schedview.db` 在 serverless 不 persist）
+`schema.ts` 設計成 dialect-portable，未來真的要換回 SQLite（或換 MySQL）時，動的檔案僅限：
+
+1. 對應 driver：`npm install better-sqlite3` / `mysql2` / 你選的 driver
+2. `src/db/schema.ts`：`pgTable` → `sqliteTable` / `mysqlTable`；`bigint({mode:'number'})` → `integer`；`jsonb` → `text({ mode: 'json' })` 或 `json`；`serial()` → 對應自增寫法
+3. `src/db/client.ts`：換 driver import 與連線設定
+4. `drizzle.config.ts`：`dialect: 'postgresql'` → 對應 dialect
+5. `npm run db:generate` 產新 migration；舊的留著不會用到
+6. 其他（`sync.ts`、`projectors.ts`、Route Handlers、UI）完全不動
 
 ---
 
