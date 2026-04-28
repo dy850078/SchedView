@@ -7,21 +7,19 @@ import { projectScheduleRequest } from '@/lib/projectors';
 export const runtime = 'nodejs';
 
 export async function GET() {
-  const rows = db
+  const rows = await db
     .select()
     .from(scheduleRequest)
     .where(isNull(scheduleRequest.deletedAt))
-    .orderBy(desc(scheduleRequest.submittedAt))
-    .all();
+    .orderBy(desc(scheduleRequest.submittedAt));
 
-  const countsBySr = db
+  const countsBySr = await db
     .select({
       scheduleRequestId: schedulePlacement.scheduleRequestId,
       c: count(),
     })
     .from(schedulePlacement)
-    .groupBy(schedulePlacement.scheduleRequestId)
-    .all();
+    .groupBy(schedulePlacement.scheduleRequestId);
   const countMap = new Map(countsBySr.map((r) => [r.scheduleRequestId, r.c]));
 
   const out = rows.map((r) =>
