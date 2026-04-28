@@ -16,11 +16,10 @@ export async function GET(
 ) {
   const { id } = await ctx.params;
 
-  const [requestRow] = db
+  const [requestRow] = await db
     .select()
     .from(scheduleRequest)
-    .where(eq(scheduleRequest.id, id))
-    .all();
+    .where(eq(scheduleRequest.id, id));
 
   if (!requestRow) {
     return NextResponse.json(
@@ -34,11 +33,10 @@ export async function GET(
     );
   }
 
-  const placements = db
+  const placements = await db
     .select()
     .from(schedulePlacement)
-    .where(eq(schedulePlacement.scheduleRequestId, id))
-    .all();
+    .where(eq(schedulePlacement.scheduleRequestId, id));
 
   const bmIds = Array.from(
     new Set(
@@ -49,7 +47,7 @@ export async function GET(
   );
   const baremetals =
     bmIds.length > 0
-      ? db.select().from(baremetal).where(inArray(baremetal.id, bmIds)).all()
+      ? await db.select().from(baremetal).where(inArray(baremetal.id, bmIds))
       : [];
 
   return NextResponse.json({

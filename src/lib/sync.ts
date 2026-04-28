@@ -29,23 +29,21 @@ export function runSync(): Promise<SyncRunRow> {
   return inFlight;
 }
 
-export function lastSyncRun(): SyncRunRow | null {
-  const rows = db
+export async function lastSyncRun(): Promise<SyncRunRow | null> {
+  const rows = await db
     .select()
     .from(syncRun)
     .orderBy(desc(syncRun.startedAt))
-    .limit(1)
-    .all();
+    .limit(1);
   return rows[0] ?? null;
 }
 
 async function doSync(): Promise<SyncRunRow> {
   const startedAt = Date.now();
-  const [run] = db
+  const [run] = await db
     .insert(syncRun)
     .values({ startedAt, status: 'running' })
-    .returning()
-    .all();
+    .returning();
 
   try {
     const client = createInventoryClient();
@@ -84,30 +82,30 @@ async function doSync(): Promise<SyncRunRow> {
     const syncedAt = Date.now();
     let upserted = 0;
 
-    db.transaction((tx) => {
+    await db.transaction(async (tx) => {
       for (const bm of validBaremetals) {
-        upsertBaremetal(tx, bm, syncedAt);
+        await upsertBaremetal(tx, bm, syncedAt);
         upserted++;
       }
       for (const req of validRequests) {
-        upsertRequest(tx, req, syncedAt);
+        await upsertRequest(tx, req, syncedAt);
         upserted++;
       }
       const seenIds = validRequests.map((r) => r.id);
       if (seenIds.length > 0) {
-        tx.update(scheduleRequest)
+        await tx
+          .update(scheduleRequest)
           .set({ deletedAt: syncedAt })
           .where(
             and(
               notInArray(scheduleRequest.id, seenIds),
               isNull(scheduleRequest.deletedAt),
             ),
-          )
-          .run();
+          );
       }
     });
 
-    const [updated] = db
+    const [updated] = await db
       .update(syncRun)
       .set({
         finishedAt: Date.now(),
@@ -116,13 +114,12 @@ async function doSync(): Promise<SyncRunRow> {
         recordsSkipped: skipped,
       })
       .where(eq(syncRun.id, run!.id))
-      .returning()
-      .all();
+      .returning();
     return updated!;
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error('[sync] failed:', err);
-    const [updated] = db
+    const [updated] = await db
       .update(syncRun)
       .set({
         finishedAt: Date.now(),
@@ -130,19 +127,18 @@ async function doSync(): Promise<SyncRunRow> {
         errorMessage,
       })
       .where(eq(syncRun.id, run!.id))
-      .returning()
-      .all();
+      .returning();
     return updated!;
   }
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-function upsertBaremetal(
+async function upsertBaremetal(
   tx: Tx,
   bm: RawBaremetal,
   syncedAt: number,
-): void {
+): Promise<void> {
   const values = {
     id: bm.id,
     site: bm.topology.site,
@@ -167,17 +163,17 @@ function upsertBaremetal(
     snapshotAt: syncedAt,
   };
   const { id: _id, ...updateSet } = values;
-  tx.insert(baremetal)
+  await tx
+    .insert(baremetal)
     .values(values)
-    .onConflictDoUpdate({ target: baremetal.id, set: updateSet })
-    .run();
+    .onConflictDoUpdate({ target: baremetal.id, set: updateSet });
 }
 
-function upsertRequest(
+async function upsertRequest(
   tx: Tx,
   req: RawScheduleRequest,
   syncedAt: number,
-): void {
+): Promise<void> {
   const values = {
     id: req.id,
     clusterId: req.cluster_id,
@@ -192,29 +188,27 @@ function upsertRequest(
     deletedAt: null as number | null,
   };
   const { id: _id, ...updateSet } = values;
-  tx.insert(scheduleRequest)
+  await tx
+    .insert(scheduleRequest)
     .values(values)
-    .onConflictDoUpdate({ target: scheduleRequest.id, set: updateSet })
-    .run();
+    .onConflictDoUpdate({ target: scheduleRequest.id, set: updateSet });
 
-  tx.delete(schedulePlacement)
-    .where(eq(schedulePlacement.scheduleRequestId, req.id))
-    .run();
+  await tx
+    .delete(schedulePlacement)
+    .where(eq(schedulePlacement.scheduleRequestId, req.id));
 
   if (req.vms.length > 0) {
-    tx.insert(schedulePlacement)
-      .values(
-        req.vms.map((vm) => ({
-          scheduleRequestId: req.id,
-          vmId: vm.id,
-          vmCpuCores: vm.demand.cpu_cores,
-          vmMemoryMb: vm.demand.memory_mb,
-          vmDiskGb: vm.demand.disk_gb,
-          vmGpuCount: vm.demand.gpu_count,
-          nodeRole: vm.node_role,
-          assignedBmId: vm.assigned_bm,
-        })),
-      )
-      .run();
+    await tx.insert(schedulePlacement).values(
+      req.vms.map((vm) => ({
+        scheduleRequestId: req.id,
+        vmId: vm.id,
+        vmCpuCores: vm.demand.cpu_cores,
+        vmMemoryMb: vm.demand.memory_mb,
+        vmDiskGb: vm.demand.disk_gb,
+        vmGpuCount: vm.demand.gpu_count,
+        nodeRole: vm.node_role,
+        assignedBmId: vm.assigned_bm,
+      })),
+    );
   }
 }
